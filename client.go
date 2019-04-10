@@ -52,8 +52,8 @@ type Client struct {
 	ctx        context.Context
 }
 
-// NewClient creates a new instance of `client`.
-// Requires `Authenticator` credentials to already have been created using `dragonchain.NewCredentials`.
+// NewClient creates a new instance of client.
+// Requires Authenticator credentials to already have been created using dragonchain.NewCredentials.
 // apiBaseUrl is optional and for use when interacting with chains outside of the managed service.
 // httpClient is also optional, for if you wish to designate custom headers to apply to requests.
 func NewClient(creds Authenticator, apiBaseURL string, httpClient *http.Client) *Client {
