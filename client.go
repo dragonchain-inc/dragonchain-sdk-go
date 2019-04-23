@@ -90,7 +90,7 @@ func (client *Client) setHeaders(req *http.Request, httpVerb, path, contentType,
 // If SCName is not provided, the go-sdk will try to pull it from the environment.
 func (client *Client) GetSmartContractHeap(getHeap *GetSmartContractHeap) (string, error) {
 	if getHeap.SCName == "" {
-		getHeap.SCName = os.Getenv("SMART_CONTRACT_NAME")
+		getHeap.SCName = os.Getenv("SMART_CONTRACT_ID")
 	}
 	path := fmt.Sprintf("/get/%s/%s", getHeap.SCName, getHeap.Key)
 	uri := fmt.Sprintf("%s%s", client.apiBaseURL, path)
