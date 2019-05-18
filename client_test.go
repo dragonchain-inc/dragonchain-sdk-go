@@ -45,7 +45,7 @@ func (c clientMock) CloseIdleConnections() {
 	return
 }
 func (c clientMock) Get(url string) (resp *http.Response, err error) {
-	return nil, errors.New("this is a test error in Client.Get")
+	return nil, errors.New("this is a test error in Client.Do")
 }
 func (c clientMock) Head(url string) (resp *http.Response, err error) {
 	return nil, errors.New("this is a test error in Client.Head")
@@ -157,8 +157,8 @@ func TestDCError(t *testing.T) {
 	_, client := setUp()
 	uri := fmt.Sprintf("%s%s", client.apiBaseURL, "/test-dc-error")
 	req, _ := http.NewRequest("GET", uri, bytes.NewBuffer([]byte("")))
-	_, err := client.performRequest(req)
-	assert.Error(t, err, "dragonchain api error: Bad Request (400) body: {\"status\": 400, \"ok\": false, \"response\": \"banana\"}")
+	_, _, err := client.performRequest(req)
+	assert.Error(t, err, "{\"status\": 400, \"ok\": false, \"response\": \"banana\"}")
 }
 
 func TestGetSecret(t *testing.T) {
@@ -187,7 +187,6 @@ func TestGetSecretError(t *testing.T) {
 	assert.NilError(t, err, "os.Setenv should not return an error")
 	_, client := setUp()
 	_, err = client.GetSecret("bananasecret", "")
-	assert.NilError(t, err, "client.GetSecret should not return an error")
 	assert.Error(t, err, "open /var/openfaas/secrets/sc-bananacoin-bananasecret: no such file or directory")
 }
 
@@ -214,7 +213,7 @@ func TestGetStatusRequestFails(t *testing.T) {
 	fakeHTTPClient := clientMock{}
 	client.OverrideCredentials(nil, "", fakeHTTPClient)
 	resp, err := client.GetStatus()
-	assert.Error(t, err, "this is a test error in Client.Get")
+	assert.Error(t, err, "this is a test error in Client.Do")
 	assert.Assert(t, resp == nil)
 }
 
@@ -225,7 +224,8 @@ func TestQueryContracts(t *testing.T) {
 	assert.NilError(t, err, "QueryContracts should not return an error")
 	// The Node and Python SDKs return queries under the key response.results as an array.
 	// For consistency, the overhead of managing this difference in golang is passed to the user.
-	raw, _ := json.Marshal(resp.Response.(map[string]interface{})["results"])
+	raw, err := json.Marshal(resp.Response["results"])
+	assert.NilError(t, err, "json.Marshal should not return an error")
 	var contracts []Contract
 	err = json.Unmarshal(raw, &contracts)
 	assert.NilError(t, err, "json.Unmarshal should not return an error")
@@ -260,7 +260,7 @@ func TestGetSmartContractByID(t *testing.T) {
 	_, client := setUp()
 	resp, err := client.GetSmartContract("banana", "")
 	assert.NilError(t, err, "GetSmartContract should not return an error")
-	expected := Contract{
+	expected := &Contract{
 		TxnType:    "banana",
 		ContractID: "banana-sc-id",
 		Status: ContractStatus{
@@ -281,7 +281,7 @@ func TestGetSmartContractRequestFails(t *testing.T) {
 	fakeHTTPClient := clientMock{}
 	client.OverrideCredentials(nil, "", fakeHTTPClient)
 	resp, err := client.GetSmartContract("banana", "")
-	assert.Error(t, err, "this is a test error in Client.Get")
+	assert.Error(t, err, "this is a test error in Client.Do")
 	assert.Assert(t, resp == nil)
 }
 
@@ -289,7 +289,7 @@ func TestGetSmartContractByType(t *testing.T) {
 	_, client := setUp()
 	resp, err := client.GetSmartContract("", "banana")
 	assert.NilError(t, err, "GetSmartContract should not return an error")
-	expected := Contract{
+	expected := &Contract{
 		TxnType:    "banana",
 		ContractID: "banana-sc-id",
 		Status: ContractStatus{
@@ -324,7 +324,7 @@ func TestPostContract(t *testing.T) {
 	}
 	resp, err := client.PostContract(contract)
 	assert.NilError(t, err, "PostContract should not return an error")
-	raw, _ := json.Marshal(resp.Response.(map[string]interface{})["success"])
+	raw, _ := json.Marshal(resp.Response["success"])
 	var contractResp Contract
 	err = json.Unmarshal(raw, &contractResp)
 	assert.NilError(t, err, "json.Unmarshal should not return an error")
@@ -370,7 +370,7 @@ func TestUpdateContract(t *testing.T) {
 	}
 	resp, err := client.UpdateContract(contract)
 	assert.NilError(t, err, "UpdateContract should not return an error")
-	raw, _ := json.Marshal(resp.Response.(map[string]interface{})["success"])
+	raw, _ := json.Marshal(resp.Response["success"])
 	var contractResp Contract
 	err = json.Unmarshal(raw, &contractResp)
 	assert.NilError(t, err, "json.Unmarshal should not return an error")
@@ -408,7 +408,7 @@ func TestDeleteContract(t *testing.T) {
 	_, client := setUp()
 	resp, err := client.DeleteContract("bananaID")
 	assert.NilError(t, err, "DeleteContract should not return an error")
-	success := resp.Response.(map[string]interface{})["success"]
+	success := resp.Response["success"]
 	assert.Assert(t, success != nil)
 }
 
@@ -425,8 +425,8 @@ func TestGetTransaction(t *testing.T) {
 	_, client := setUp()
 	resp, err := client.GetTransaction("banana-txn")
 	assert.NilError(t, err, "GetTransaction should not return an error")
-	txn := resp.Response.(Transaction)
-	expected := Transaction{
+	txn := resp.Response
+	expected := &Transaction{
 		Version: "1",
 		DCRN:    "Transaction::L1::FullTransaction",
 		Header: Header{
@@ -451,7 +451,7 @@ func TestGetTransactionRequestFails(t *testing.T) {
 	fakeHTTPClient := clientMock{}
 	client.OverrideCredentials(nil, "", fakeHTTPClient)
 	resp, err := client.GetTransaction("banana-txn")
-	assert.Error(t, err, "this is a test error in Client.Get")
+	assert.Error(t, err, "this is a test error in Client.Do")
 	assert.Assert(t, resp == nil)
 }
 
@@ -539,7 +539,7 @@ func TestQueryBlocks(t *testing.T) {
 	assert.NilError(t, err, "QueryBlocks should not return an error")
 	// The Node and Python SDKs return queries under the key response.results as an array.
 	// For consistency, the overhead of managing this difference in golang is passed to the user.
-	raw, _ := json.Marshal(resp.Response.(map[string]interface{})["results"])
+	raw, _ := json.Marshal(resp.Response["results"])
 	var blocks []Block
 	err = json.Unmarshal(raw, &blocks)
 	assert.NilError(t, err, "json.Unmarshal should not return an error")
@@ -582,8 +582,8 @@ func TestGetBlock(t *testing.T) {
 		t.Errorf("did not expect nil response")
 	}
 	assert.NilError(t, err, "GetBlock should not return an error")
-	block := resp.Response.(Block)
-	expected := Block{
+	block := resp.Response
+	expected := &Block{
 		Version: "1",
 		DCRN:    "Block::L1::AtRest",
 		Header: BlockHeader{
@@ -608,7 +608,7 @@ func TestGetBlockRequestFails(t *testing.T) {
 	fakeHTTPClient := clientMock{}
 	client.OverrideCredentials(nil, "", fakeHTTPClient)
 	resp, err := client.GetBlock("banana-block")
-	assert.Error(t, err, "this is a test error in Client.Get")
+	assert.Error(t, err, "this is a test error in Client.Do")
 	assert.Assert(t, resp == nil)
 }
 
@@ -616,8 +616,8 @@ func TestGetVerification(t *testing.T) {
 	_, client := setUp()
 	resp, err := client.GetVerification("banana", 0)
 	assert.NilError(t, err, "GetVerification should not return an error")
-	verification := resp.Response.(Verification)
-	expected := Verification{
+	verification := resp.VerificationResponse
+	expected := &Verification{
 		L2: []Block{
 			{
 				Version: "1",
@@ -647,8 +647,8 @@ func TestGetVerificationAtLevel(t *testing.T) {
 	_, client := setUp()
 	resp, err := client.GetVerification("banana", 2)
 	assert.NilError(t, err, "GetVerification should not return an error")
-	verification := resp.Response.([]Block)
-	expected := Block{
+	verification := resp.BlocksResponse
+	expected := &Block{
 		Version: "1",
 		DCRN:    "Block::L2::AtRest",
 		Proof:   BlockProof{Scheme: "trust", Proof: "proofnana"},
@@ -668,7 +668,7 @@ func TestQueryTransactions(t *testing.T) {
 	assert.NilError(t, err, "QueryTransactions should not return an error")
 	// The Node and Python SDKs return queries under the key response.results as an array.
 	// For consistency, the overhead of managing this difference in golang is passed to the user.
-	raw, _ := json.Marshal(resp.Response.(map[string]interface{})["results"])
+	raw, _ := json.Marshal(resp.Response["results"])
 	var txn []Transaction
 	err = json.Unmarshal(raw, &txn)
 	assert.NilError(t, err, "json.Unmarshal should not return an error")
@@ -730,7 +730,7 @@ func TestGetSCHeapRequestFails(t *testing.T) {
 	fakeHTTPClient := clientMock{}
 	client.OverrideCredentials(nil, "", fakeHTTPClient)
 	resp, err := client.GetSCHeap("bananaContract", "apple")
-	assert.Error(t, err, "this is a test error in Client.Get")
+	assert.Error(t, err, "this is a test error in Client.Do")
 	assert.Assert(t, resp == nil)
 }
 
@@ -762,7 +762,7 @@ func TestListSCHeapRequestFails(t *testing.T) {
 	fakeHTTPClient := clientMock{}
 	client.OverrideCredentials(nil, "", fakeHTTPClient)
 	resp, err := client.ListSCHeap("bananaContract", "apple")
-	assert.Error(t, err, "this is a test error in Client.Get")
+	assert.Error(t, err, "this is a test error in Client.Do")
 	assert.Assert(t, resp == nil)
 }
 
@@ -770,7 +770,7 @@ func TestGetTransactionType(t *testing.T) {
 	_, client := setUp()
 	resp, err := client.GetTransactionType("banana")
 	assert.NilError(t, err, "GetTransactionType should not return an error")
-	expected := TransactionType{
+	expected := &TransactionType{
 		Version:       "1",
 		Type:          "banana",
 		CustomIndexes: []CustomIndexStructure{},
@@ -783,7 +783,7 @@ func TestGetTransactionTypeRequestFails(t *testing.T) {
 	fakeHTTPClient := clientMock{}
 	client.OverrideCredentials(nil, "", fakeHTTPClient)
 	resp, err := client.GetTransactionType("banana")
-	assert.Error(t, err, "this is a test error in Client.Get")
+	assert.Error(t, err, "this is a test error in Client.Do")
 	assert.Assert(t, resp == nil)
 }
 
@@ -793,7 +793,7 @@ func TestListTransactionTypes(t *testing.T) {
 	assert.NilError(t, err, "ListTransactionTypes should not return an error")
 	// The Node and Python SDKs return queries under the key response.transaction_types as an array.
 	// For consistency, the overhead of managing this difference in golang is passed to the user.
-	raw, _ := json.Marshal(resp.Response.(map[string]interface{})["transaction_types"])
+	raw, _ := json.Marshal(resp.Response["transaction_types"])
 	var txnTypes []TransactionType
 	err = json.Unmarshal(raw, &txnTypes)
 	assert.NilError(t, err, "json.Unmarshal should not return an error")
@@ -810,7 +810,7 @@ func TestListTransactionTypesRequestFails(t *testing.T) {
 	fakeHTTPClient := clientMock{}
 	client.OverrideCredentials(nil, "", fakeHTTPClient)
 	resp, err := client.ListTransactionTypes()
-	assert.Error(t, err, "this is a test error in Client.Get")
+	assert.Error(t, err, "this is a test error in Client.Do")
 	assert.Assert(t, resp == nil)
 }
 

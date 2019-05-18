@@ -31,10 +31,41 @@ import (
 const MaxBulkPutSize = 250
 
 // Response defines the standard response all chains will use.
-type Response struct {
+type ChainResponse struct {
 	OK       bool        `json:"ok"`
 	Status   int         `json:"status"`
 	Response interface{} `json:"response"`
+}
+
+type MapResponse struct {
+	*ChainResponse
+	Response map[string]interface{} `json:"response"`
+}
+
+type ContractResponse struct {
+	*ChainResponse
+	Response *Contract `json:"response"`
+}
+
+type TransactionResponse struct {
+	*ChainResponse
+	Response *Transaction `json:"response"`
+}
+
+type BlockResponse struct {
+	*ChainResponse
+	Response *Block `json:"response"`
+}
+
+type VerificationResponse struct {
+	*ChainResponse
+	VerificationResponse *Verification `json:"verify_response"`
+	BlocksResponse []*Block  `json:"blocks_response"`
+}
+
+type TransactionTypeResponse struct {
+	*ChainResponse
+	Response *TransactionType `json:"response"`
 }
 
 // Client defines the structure of the DragonchainSDK client.
@@ -105,7 +136,7 @@ func (client *Client) GetSecret(secretName, scID string) (string, error) {
 
 	file, err := os.Open(path)
 	defer func() {
-		must(file.Close())
+		_ = file.Close()
 	}()
 	if err == nil {
 		return parseSecret(file)
@@ -120,7 +151,7 @@ func parseSecret(reader io.Reader) (string, error) {
 }
 
 // GetStatus returns the chain's status, such as Active or Updating.
-func (client *Client) GetStatus() (*Response, error) {
+func (client *Client) GetStatus() (*MapResponse, error) {
 	path := "/status"
 	uri := fmt.Sprintf("%s%s", client.apiBaseURL, path)
 	req, err := http.NewRequest("GET", uri, bytes.NewBuffer([]byte("")))
@@ -128,15 +159,19 @@ func (client *Client) GetStatus() (*Response, error) {
 		return nil, err
 	}
 
-	resp, err := client.performRequest(req)
+	_, data, err := client.performRequest(req)
 	if err != nil {
 		return nil, err
 	}
-	return resp, err
+	var respData MapResponse
+	if err := json.Unmarshal(data, &respData); err != nil {
+		return nil, err
+	}
+	return &respData, nil
 }
 
 // QueryContracts returns a list of matching contracts on the chain.
-func (client *Client) QueryContracts(query *Query) (*Response, error) {
+func (client *Client) QueryContracts(query *Query) (*MapResponse, error) {
 	path := "/contract"
 	uri := fmt.Sprintf("%s%s", client.apiBaseURL, path)
 	req, err := http.NewRequest("GET", uri, bytes.NewBuffer([]byte("")))
@@ -145,16 +180,20 @@ func (client *Client) QueryContracts(query *Query) (*Response, error) {
 	}
 
 	buildQuery(req, query)
-	resp, err := client.performRequest(req)
+	_, data, err := client.performRequest(req)
 	if err != nil {
 		return nil, err
 	}
-	return resp, err
+	var respData MapResponse
+	if err := json.Unmarshal(data, &respData); err != nil {
+		return nil, err
+	}
+	return &respData, nil
 }
 
 // GetSmartContract returns details on a smart contract by ID or txnType.
 // If both contractID and txnType are provided, contractID is used.
-func (client *Client) GetSmartContract(contractID, txnType string) (*Response, error) {
+func (client *Client) GetSmartContract(contractID, txnType string) (*ContractResponse, error) {
 	var err error
 	var uri string
 	if contractID == "" && txnType == "" {
@@ -170,25 +209,20 @@ func (client *Client) GetSmartContract(contractID, txnType string) (*Response, e
 	if err != nil {
 		return nil, err
 	}
-	resp, err := client.performRequest(req)
+	_, data, err := client.performRequest(req)
 	if err != nil {
 		return nil, err
 	}
 	// Handle conversion of Response from an interface{} to Contract for the user.
-	raw, err := json.Marshal(resp.Response)
-	if err != nil {
+	var contract ContractResponse
+	if err := json.Unmarshal(data, &contract); err != nil {
 		return nil, err
 	}
-	var contract Contract
-	if err := json.Unmarshal(raw, &contract); err != nil {
-		return nil, err
-	}
-	resp.Response = contract
-	return resp, err
+	return &contract, nil
 }
 
 // PostContract creates a new smart contract on the chain.
-func (client *Client) PostContract(contract *ContractConfiguration) (*Response, error) {
+func (client *Client) PostContract(contract *ContractConfiguration) (*MapResponse, error) {
 	path := "/contract"
 	uri := fmt.Sprintf("%s%s", client.apiBaseURL, path)
 	b, err := json.Marshal(contract)
@@ -204,7 +238,7 @@ func (client *Client) PostContract(contract *ContractConfiguration) (*Response, 
 		must(resp.Body.Close())
 	}()
 	decoder := json.NewDecoder(resp.Body)
-	var chainResp Response
+	var chainResp MapResponse
 	err = decoder.Decode(&chainResp)
 	if err != nil {
 		return nil, err
@@ -214,7 +248,7 @@ func (client *Client) PostContract(contract *ContractConfiguration) (*Response, 
 
 // UpdateContract updates an existing contract with a new configuration.
 // Configuration details that aren't provided will not be changed.
-func (client *Client) UpdateContract(contract *ContractConfiguration) (*Response, error) {
+func (client *Client) UpdateContract(contract *ContractConfiguration) (*MapResponse, error) {
 	path := "/contract"
 	uri := fmt.Sprintf("%s%s", client.apiBaseURL, path)
 	b, err := json.Marshal(contract)
@@ -226,53 +260,59 @@ func (client *Client) UpdateContract(contract *ContractConfiguration) (*Response
 	if err != nil {
 		return nil, err
 	}
-	resp, err := client.performRequest(req)
+	_, data, err := client.performRequest(req)
 	if err != nil {
 		return nil, err
 	}
-	return resp, err
+	var respData MapResponse
+	if err := json.Unmarshal(data, &respData); err != nil {
+		return nil, err
+	}
+	return &respData, nil
 }
 
 // DeleteContract removes a contract from the chain.
-func (client *Client) DeleteContract(contractID string) (*Response, error) {
+func (client *Client) DeleteContract(contractID string) (*MapResponse, error) {
 	path := "/contract"
 	uri := fmt.Sprintf("%s%s/%s", client.apiBaseURL, path, contractID)
 	req, err := http.NewRequest("DELETE", uri, bytes.NewBuffer([]byte("")))
 	if err != nil {
 		return nil, err
 	}
-	resp, err := client.performRequest(req)
+	_, data, err := client.performRequest(req)
 	if err != nil {
 		return nil, err
 	}
-	return resp, err
+	var respData MapResponse
+	if err := json.Unmarshal(data, &respData); err != nil {
+		return nil, err
+	}
+	return &respData, nil
 }
 
 // GetTransaction gets a transaction from the chain by id.
-func (client *Client) GetTransaction(txnID string) (*Response, error) {
+func (client *Client) GetTransaction(txnID string) (*TransactionResponse, error) {
 	path := "/transaction"
 	uri := fmt.Sprintf("%s%s/%s", client.apiBaseURL, path, txnID)
-	fmt.Println(uri)
 
 	req, err := http.NewRequest("GET", uri, bytes.NewBuffer([]byte("")))
 	if err != nil {
 		return nil, err
 	}
-	resp, err := client.performRequest(req)
+	_, data, err := client.performRequest(req)
 	if err != nil {
 		return nil, err
 	}
 	// Handle conversion of Response from an interface{} to Transaction for the user.
-	var txn Transaction
-	if err := json.Unmarshal(resp.Response.([]byte), &txn); err != nil {
+	var txn TransactionResponse
+	if err := json.Unmarshal(data, &txn); err != nil {
 		return nil, err
 	}
-	resp.Response = txn
-	return resp, err
+	return &txn, nil
 }
 
 // PostTransaction creates a transaction on the chain.
-func (client *Client) PostTransaction(txn *PostTransaction) (*Response, error) {
+func (client *Client) PostTransaction(txn *PostTransaction) (*ChainResponse, error) {
 	path := "/transaction"
 	uri := fmt.Sprintf("%s%s", client.apiBaseURL, path)
 
@@ -289,7 +329,7 @@ func (client *Client) PostTransaction(txn *PostTransaction) (*Response, error) {
 		must(resp.Body.Close())
 	}()
 	decoder := json.NewDecoder(resp.Body)
-	var chainResp Response
+	var chainResp ChainResponse
 	err = decoder.Decode(&chainResp)
 	if err != nil {
 		return nil, err
@@ -298,7 +338,7 @@ func (client *Client) PostTransaction(txn *PostTransaction) (*Response, error) {
 }
 
 // PostTransactionBulk sends many transactions to a chain in a single HTTP request.
-func (client *Client) PostTransactionBulk(txn []*PostTransaction) (*Response, error) {
+func (client *Client) PostTransactionBulk(txn []*PostTransaction) (*ChainResponse, error) {
 	path := "/transaction_bulk"
 	uri := fmt.Sprintf("%s%s", client.apiBaseURL, path)
 
@@ -319,7 +359,7 @@ func (client *Client) PostTransactionBulk(txn []*PostTransaction) (*Response, er
 		must(resp.Body.Close())
 	}()
 	decoder := json.NewDecoder(resp.Body)
-	var chainResp Response
+	var chainResp ChainResponse
 	err = decoder.Decode(&chainResp)
 	if err != nil {
 		return nil, err
@@ -328,7 +368,7 @@ func (client *Client) PostTransactionBulk(txn []*PostTransaction) (*Response, er
 }
 
 // QueryBlocks gets all blocks matching the given query.
-func (client *Client) QueryBlocks(query *Query) (*Response, error) {
+func (client *Client) QueryBlocks(query *Query) (*MapResponse, error) {
 	path := "/block"
 	uri := fmt.Sprintf("%s%s", client.apiBaseURL, path)
 
@@ -337,15 +377,19 @@ func (client *Client) QueryBlocks(query *Query) (*Response, error) {
 		return nil, err
 	}
 	buildQuery(req, query)
-	resp, err := client.performRequest(req)
+	_, data, err := client.performRequest(req)
 	if err != nil {
 		return nil, err
 	}
-	return resp, err
+	var respData MapResponse
+	if err := json.Unmarshal(data, &respData); err != nil {
+		return nil, err
+	}
+	return &respData, nil
 }
 
 // GetBlock returns a block by ID.
-func (client *Client) GetBlock(blockID string) (*Response, error) {
+func (client *Client) GetBlock(blockID string) (*BlockResponse, error) {
 	path := "/block"
 	uri := fmt.Sprintf("%s%s/%s", client.apiBaseURL, path, blockID)
 
@@ -353,25 +397,19 @@ func (client *Client) GetBlock(blockID string) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	resp, err := client.performRequest(req)
+	_, data, err := client.performRequest(req)
 	if err != nil {
 		return nil, err
 	}
-	// Handle conversion of Response from an interface{} to Block for the user.
-	raw, err := json.Marshal(resp.Response)
-	if err != nil {
+	var block BlockResponse
+	if err := json.Unmarshal(data, &block); err != nil {
 		return nil, err
 	}
-	var block Block
-	if err := json.Unmarshal(raw, &block); err != nil {
-		return nil, err
-	}
-	resp.Response = block
-	return resp, err
+	return &block, nil
 }
 
 // GetVerification returns a block's verification at a specific level of DragonNet.
-func (client *Client) GetVerification(blockID string, level int) (*Response, error) {
+func (client *Client) GetVerification(blockID string, level int) (*VerificationResponse, error) {
 	path := "/verifications"
 	uri := fmt.Sprintf("%s%s/%s", client.apiBaseURL, path, blockID)
 
@@ -384,37 +422,40 @@ func (client *Client) GetVerification(blockID string, level int) (*Response, err
 		q.Add("level", string(level))
 		req.URL.RawQuery = q.Encode()
 	}
-	resp, err := client.performRequest(req)
+	resp, data, err := client.performRequest(req)
 	if err != nil {
 		return nil, err
 	}
+	verifyBlocksResp := &VerificationResponse{
+		ChainResponse: resp,
+	}
 	// Handle conversion of Response from an interface{} to Verification for the user.
 	if level > 0 {
-		raw, err := json.Marshal(resp.Response)
-		if err != nil {
+		blocksResp := struct {
+			OK       bool        `json:"ok"`
+			Status   int         `json:"status"`
+			Response []*Block `json:"response"`
+		}{}
+		if err := json.Unmarshal(data, &blocksResp); err != nil {
 			return nil, err
 		}
-		var verificationBlocks []Block
-		if err := json.Unmarshal(raw, &verificationBlocks); err != nil {
-			return nil, err
-		}
-		resp.Response = verificationBlocks
+		verifyBlocksResp.BlocksResponse = blocksResp.Response
 	} else {
-		raw, err := json.Marshal(resp.Response)
-		if err != nil {
+		verifyResp := struct {
+			OK       bool        `json:"ok"`
+			Status   int         `json:"status"`
+			Response *Verification `json:"response"`
+		}{}
+		if err := json.Unmarshal(data, &verifyResp); err != nil {
 			return nil, err
 		}
-		var verification Verification
-		if err := json.Unmarshal(raw, &verification); err != nil {
-			return nil, err
-		}
-		resp.Response = verification
+		verifyBlocksResp.VerificationResponse = verifyResp.Response
 	}
-	return resp, err
+	return verifyBlocksResp, err
 }
 
 // QueryTransactions gets all transactions matching the given query on the chain.
-func (client *Client) QueryTransactions(query *Query) (*Response, error) {
+func (client *Client) QueryTransactions(query *Query) (*MapResponse, error) {
 	path := "/transaction"
 	uri := fmt.Sprintf("%s%s", client.apiBaseURL, path)
 
@@ -424,16 +465,20 @@ func (client *Client) QueryTransactions(query *Query) (*Response, error) {
 	}
 
 	buildQuery(req, query)
-	resp, err := client.performRequest(req)
+	_, data, err := client.performRequest(req)
 	if err != nil {
 		return nil, err
 	}
-	return resp, err
+	var respData MapResponse
+	if err := json.Unmarshal(data, &respData); err != nil {
+		return nil, err
+	}
+	return &respData, nil
 }
 
 // GetSCHeap returns a specific key from a smart contract's heap.
 // If SCName is not provided, the SDK will try to pull it from the environment.
-func (client *Client) GetSCHeap(scID, key string) (*Response, error) {
+func (client *Client) GetSCHeap(scID, key string) (*ChainResponse, error) {
 	if len(scID) == 0 {
 		scID = os.Getenv("SMART_CONTRACT_ID")
 	}
@@ -449,16 +494,20 @@ func (client *Client) GetSCHeap(scID, key string) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	resp, err := client.performRequest(req)
+	_, data, err := client.performRequest(req)
 	if err != nil {
 		return nil, err
 	}
-	return resp, err
+	var respData ChainResponse
+	if err := json.Unmarshal(data, &respData); err != nil {
+		return nil, err
+	}
+	return &respData, nil
 }
 
 // ListSCHeap lists out all keys from a smart contract's heap.
 // Optionally, folder can be provided to only list a subset of keys.
-func (client *Client) ListSCHeap(scID, folder string) (*Response, error) {
+func (client *Client) ListSCHeap(scID, folder string) (*ChainResponse, error) {
 	if len(scID) == 0 {
 		scID = os.Getenv("SMART_CONTRACT_ID")
 	}
@@ -477,15 +526,19 @@ func (client *Client) ListSCHeap(scID, folder string) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	resp, err := client.performRequest(req)
+	_, data, err := client.performRequest(req)
 	if err != nil {
 		return nil, err
 	}
-	return resp, err
+	var respData ChainResponse
+	if err := json.Unmarshal(data, &respData); err != nil {
+		return nil, err
+	}
+	return &respData, nil
 }
 
 // GetTransactionType returns a transaction type on chain by its name.
-func (client *Client) GetTransactionType(transactionType string) (*Response, error) {
+func (client *Client) GetTransactionType(transactionType string) (*TransactionTypeResponse, error) {
 	path := "/transaction-type"
 	uri := fmt.Sprintf("%s%s/%s", client.apiBaseURL, path, transactionType)
 
@@ -493,25 +546,19 @@ func (client *Client) GetTransactionType(transactionType string) (*Response, err
 	if err != nil {
 		return nil, err
 	}
-	resp, err := client.performRequest(req)
+	_, data, err := client.performRequest(req)
 	if err != nil {
 		return nil, err
 	}
-	// Handle conversion of Response from an interface{} to TransactionType for the user.
-	raw, err := json.Marshal(resp.Response)
-	if err != nil {
+	var txnType TransactionTypeResponse
+	if err := json.Unmarshal(data, &txnType); err != nil {
 		return nil, err
 	}
-	var txnType TransactionType
-	if err := json.Unmarshal(raw, &txnType); err != nil {
-		return nil, err
-	}
-	resp.Response = txnType
-	return resp, err
+	return &txnType, nil
 }
 
 // ListTransactionTypes lists out all registered transaction types for a chain.
-func (client *Client) ListTransactionTypes() (*Response, error) {
+func (client *Client) ListTransactionTypes() (*MapResponse, error) {
 	path := "/transaction-types"
 	uri := fmt.Sprintf("%s%s", client.apiBaseURL, path)
 
@@ -519,15 +566,19 @@ func (client *Client) ListTransactionTypes() (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	resp, err := client.performRequest(req)
+	_, data, err := client.performRequest(req)
 	if err != nil {
 		return nil, err
 	}
-	return resp, err
+	var respData MapResponse
+	if err := json.Unmarshal(data, &respData); err != nil {
+		return nil, err
+	}
+	return &respData, nil
 }
 
 // UpdateTransactionType updates a given transaction type.
-func (client *Client) UpdateTransactionType(transactionType string, customIndexes []CustomIndexStructure) (*Response, error) {
+func (client *Client) UpdateTransactionType(transactionType string, customIndexes []CustomIndexStructure) (*MapResponse, error) {
 	path := "/transaction-type"
 	uri := fmt.Sprintf("%s%s/%s", client.apiBaseURL, path, transactionType)
 	var params TransactionType
@@ -543,15 +594,19 @@ func (client *Client) UpdateTransactionType(transactionType string, customIndexe
 	if err != nil {
 		return nil, err
 	}
-	resp, err := client.performRequest(req)
+	_, data, err := client.performRequest(req)
 	if err != nil {
 		return nil, err
 	}
-	return resp, err
+	var respData MapResponse
+	if err := json.Unmarshal(data, &respData); err != nil {
+		return nil, err
+	}
+	return &respData, nil
 }
 
 // RegisterTransactionType creates a new transaction type.
-func (client *Client) RegisterTransactionType(transactionType string, customIndexes []CustomIndexStructure) (*Response, error) {
+func (client *Client) RegisterTransactionType(transactionType string, customIndexes []CustomIndexStructure) (*ChainResponse, error) {
 	path := "/transaction-type"
 	uri := fmt.Sprintf("%s%s", client.apiBaseURL, path)
 	var params TransactionType
@@ -572,7 +627,7 @@ func (client *Client) RegisterTransactionType(transactionType string, customInde
 		must(resp.Body.Close())
 	}()
 	decoder := json.NewDecoder(resp.Body)
-	var chainResp Response
+	var chainResp ChainResponse
 	err = decoder.Decode(&chainResp)
 	if err != nil {
 		return nil, err
@@ -581,7 +636,7 @@ func (client *Client) RegisterTransactionType(transactionType string, customInde
 }
 
 // DeleteTransactionType removes the specified transaction type. It will not affect transactions that have already been processed.
-func (client *Client) DeleteTransactionType(transactionType string) (*Response, error) {
+func (client *Client) DeleteTransactionType(transactionType string) (*MapResponse, error) {
 	path := "/transaction-type"
 	uri := fmt.Sprintf("%s%s/%s", client.apiBaseURL, path, transactionType)
 
@@ -589,11 +644,15 @@ func (client *Client) DeleteTransactionType(transactionType string) (*Response, 
 	if err != nil {
 		return nil, err
 	}
-	resp, err := client.performRequest(req)
+	_, data, err := client.performRequest(req)
 	if err != nil {
 		return nil, err
 	}
-	return resp, err
+	var respData MapResponse
+	if err := json.Unmarshal(data, &respData); err != nil {
+		return nil, err
+	}
+	return &respData, nil
 }
 
 // setHeaders sets the http headers of a request to the chain with proper authorization.
@@ -614,25 +673,29 @@ func (client *Client) setHeaders(req *http.Request, httpVerb, path, contentType,
 	return nil
 }
 
-func (client *Client) performRequest(req *http.Request) (*Response, error) {
+func (client *Client) performRequest(req *http.Request) (*ChainResponse, []byte, error) {
 	err := client.setHeaders(req, req.Method, req.URL.RequestURI(), "application/json", "")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	resp, err := client.httpClient.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	var chainResp Response
-	chainResp.Response, err = ioutil.ReadAll(resp.Body)
+	var chainResp ChainResponse
+	respData, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	chainResp.Status = resp.StatusCode
 	if 200 <= resp.StatusCode && resp.StatusCode < 300 {
 		chainResp.OK = true
+	} else {
+		chainResp.OK = false
+		err = errors.New(string(respData))
 	}
-	return &chainResp, err
+	chainResp.Response = respData
+	return &chainResp, respData, err
 }
 
 func buildQuery(req *http.Request, query *Query) {
