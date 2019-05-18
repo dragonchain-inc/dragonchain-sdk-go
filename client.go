@@ -104,7 +104,9 @@ func (client *Client) GetSecret(secretName, scID string) (string, error) {
 	}
 
 	file, err := os.Open(path)
-	defer file.Close()
+	defer func() {
+		must(file.Close())
+	}()
 	if err == nil {
 		return parseSecret(file)
 	}
@@ -175,7 +177,9 @@ func (client *Client) GetSmartContract(contractID, txnType string) (*Response, e
 	// Handle conversion of Response from an interface{} to Contract for the user.
 	raw, _ := json.Marshal(resp.Response)
 	var contract Contract
-	json.Unmarshal(raw, &contract)
+	if err := json.Unmarshal(raw, &contract); err != nil {
+		return nil, err
+	}
 	resp.Response = contract
 	return resp, err
 }
@@ -193,7 +197,9 @@ func (client *Client) PostContract(contract *ContractConfiguration) (*Response, 
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		must(resp.Body.Close())
+	}()
 	decoder := json.NewDecoder(resp.Body)
 	var chainResp Response
 	err = decoder.Decode(&chainResp)
@@ -255,7 +261,9 @@ func (client *Client) GetTransaction(txnID string) (*Response, error) {
 	}
 	// Handle conversion of Response from an interface{} to Transaction for the user.
 	var txn Transaction
-	json.Unmarshal(resp.Response.([]byte), &txn)
+	if err := json.Unmarshal(resp.Response.([]byte), &txn); err != nil {
+		return nil, err
+	}
 	resp.Response = txn
 	return resp, err
 }
@@ -274,7 +282,9 @@ func (client *Client) PostTransaction(txn *PostTransaction) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		must(resp.Body.Close())
+	}()
 	decoder := json.NewDecoder(resp.Body)
 	var chainResp Response
 	err = decoder.Decode(&chainResp)
@@ -302,7 +312,9 @@ func (client *Client) PostTransactionBulk(txn []*PostTransaction) (*Response, er
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		must(resp.Body.Close())
+	}()
 	decoder := json.NewDecoder(resp.Body)
 	var chainResp Response
 	err = decoder.Decode(&chainResp)
@@ -345,7 +357,9 @@ func (client *Client) GetBlock(blockID string) (*Response, error) {
 	// Handle conversion of Response from an interface{} to Block for the user.
 	raw, _ := json.Marshal(resp.Response)
 	var block Block
-	json.Unmarshal(raw, &block)
+	if err := json.Unmarshal(raw, &block); err != nil {
+		return nil, err
+	}
 	resp.Response = block
 	return resp, err
 }
@@ -372,12 +386,16 @@ func (client *Client) GetVerification(blockID string, level int) (*Response, err
 	if level > 0 {
 		raw, _ := json.Marshal(resp.Response)
 		var verificationBlocks []Block
-		json.Unmarshal(raw, &verificationBlocks)
+		if err := json.Unmarshal(raw, &verificationBlocks); err != nil {
+			return nil, err
+		}
 		resp.Response = verificationBlocks
 	} else {
 		raw, _ := json.Marshal(resp.Response)
 		var verification Verification
-		json.Unmarshal(raw, &verification)
+		if err := json.Unmarshal(raw, &verification); err != nil {
+			return nil, err
+		}
 		resp.Response = verification
 	}
 	return resp, err
@@ -470,7 +488,9 @@ func (client *Client) GetTransactionType(transactionType string) (*Response, err
 	// Handle conversion of Response from an interface{} to TransactionType for the user.
 	raw, _ := json.Marshal(resp.Response)
 	var txnType TransactionType
-	json.Unmarshal(raw, &txnType)
+	if err := json.Unmarshal(raw, &txnType); err != nil {
+		return nil, err
+	}
 	resp.Response = txnType
 	return resp, err
 }
@@ -533,7 +553,9 @@ func (client *Client) RegisterTransactionType(transactionType string, customInde
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		must(resp.Body.Close())
+	}()
 	decoder := json.NewDecoder(resp.Body)
 	var chainResp Response
 	err = decoder.Decode(&chainResp)
@@ -611,4 +633,10 @@ func buildQuery(req *http.Request, query *Query) {
 		q.Add("offset", string(query.Offset))
 	}
 	req.URL.RawQuery = q.Encode()
+}
+
+func must(err error) {
+	if err != nil {
+		panic(err)
+	}
 }
