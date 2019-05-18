@@ -175,7 +175,10 @@ func (client *Client) GetSmartContract(contractID, txnType string) (*Response, e
 		return nil, err
 	}
 	// Handle conversion of Response from an interface{} to Contract for the user.
-	raw, _ := json.Marshal(resp.Response)
+	raw, err := json.Marshal(resp.Response)
+	if err != nil {
+		return nil, err
+	}
 	var contract Contract
 	if err := json.Unmarshal(raw, &contract); err != nil {
 		return nil, err
@@ -355,7 +358,10 @@ func (client *Client) GetBlock(blockID string) (*Response, error) {
 		return nil, err
 	}
 	// Handle conversion of Response from an interface{} to Block for the user.
-	raw, _ := json.Marshal(resp.Response)
+	raw, err := json.Marshal(resp.Response)
+	if err != nil {
+		return nil, err
+	}
 	var block Block
 	if err := json.Unmarshal(raw, &block); err != nil {
 		return nil, err
@@ -384,14 +390,20 @@ func (client *Client) GetVerification(blockID string, level int) (*Response, err
 	}
 	// Handle conversion of Response from an interface{} to Verification for the user.
 	if level > 0 {
-		raw, _ := json.Marshal(resp.Response)
+		raw, err := json.Marshal(resp.Response)
+		if err != nil {
+			return nil, err
+		}
 		var verificationBlocks []Block
 		if err := json.Unmarshal(raw, &verificationBlocks); err != nil {
 			return nil, err
 		}
 		resp.Response = verificationBlocks
 	} else {
-		raw, _ := json.Marshal(resp.Response)
+		raw, err := json.Marshal(resp.Response)
+		if err != nil {
+			return nil, err
+		}
 		var verification Verification
 		if err := json.Unmarshal(raw, &verification); err != nil {
 			return nil, err
@@ -486,7 +498,10 @@ func (client *Client) GetTransactionType(transactionType string) (*Response, err
 		return nil, err
 	}
 	// Handle conversion of Response from an interface{} to TransactionType for the user.
-	raw, _ := json.Marshal(resp.Response)
+	raw, err := json.Marshal(resp.Response)
+	if err != nil {
+		return nil, err
+	}
 	var txnType TransactionType
 	if err := json.Unmarshal(raw, &txnType); err != nil {
 		return nil, err
@@ -609,7 +624,10 @@ func (client *Client) performRequest(req *http.Request) (*Response, error) {
 		return nil, err
 	}
 	var chainResp Response
-	chainResp.Response, _ = ioutil.ReadAll(resp.Body)
+	chainResp.Response, err = ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
 	chainResp.Status = resp.StatusCode
 	if 200 <= resp.StatusCode && resp.StatusCode < 300 {
 		chainResp.OK = true
