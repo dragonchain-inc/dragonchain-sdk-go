@@ -47,9 +47,27 @@ type ContractResponse struct {
 	Response *Contract `json:"response"`
 }
 
+type MultipleContractResults struct {
+	Results []*Contract `json:"results"`
+}
+
+type MultipleContractResponse struct {
+	*ChainResponse
+	Response MultipleContractResults `json:"response"`
+}
+
 type TransactionResponse struct {
 	*ChainResponse
 	Response *Transaction `json:"response"`
+}
+
+type MultipleTransactionResults struct {
+	Results []*Transaction `json:"results"`
+}
+
+type MultipleTransactionResponse struct {
+	*ChainResponse
+	Response MultipleTransactionResults `json:"response"`
 }
 
 type BlockResponse struct {
@@ -57,10 +75,19 @@ type BlockResponse struct {
 	Response *Block `json:"response"`
 }
 
+type MultipleBlockResults struct {
+	Results []*Block `json:"results"`
+}
+
+type MultipleBlockResponse struct {
+	*ChainResponse
+	Response MultipleBlockResults `json:"response"`
+}
+
 type VerificationResponse struct {
 	*ChainResponse
 	VerificationResponse *Verification `json:"verify_response"`
-	BlocksResponse []*Block  `json:"blocks_response"`
+	BlocksResponse       []*Block      `json:"blocks_response"`
 }
 
 type TransactionTypeResponse struct {
@@ -171,7 +198,7 @@ func (client *Client) GetStatus() (*MapResponse, error) {
 }
 
 // QueryContracts returns a list of matching contracts on the chain.
-func (client *Client) QueryContracts(query *Query) (*MapResponse, error) {
+func (client *Client) QueryContracts(query *Query) (*MultipleContractResponse, error) {
 	path := "/contract"
 	uri := fmt.Sprintf("%s%s", client.apiBaseURL, path)
 	req, err := http.NewRequest("GET", uri, bytes.NewBuffer([]byte("")))
@@ -184,7 +211,7 @@ func (client *Client) QueryContracts(query *Query) (*MapResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	var respData MapResponse
+	var respData MultipleContractResponse
 	if err := json.Unmarshal(data, &respData); err != nil {
 		return nil, err
 	}
@@ -368,7 +395,7 @@ func (client *Client) PostTransactionBulk(txn []*PostTransaction) (*ChainRespons
 }
 
 // QueryBlocks gets all blocks matching the given query.
-func (client *Client) QueryBlocks(query *Query) (*MapResponse, error) {
+func (client *Client) QueryBlocks(query *Query) (*MultipleBlockResponse, error) {
 	path := "/block"
 	uri := fmt.Sprintf("%s%s", client.apiBaseURL, path)
 
@@ -381,7 +408,7 @@ func (client *Client) QueryBlocks(query *Query) (*MapResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	var respData MapResponse
+	var respData MultipleBlockResponse
 	if err := json.Unmarshal(data, &respData); err != nil {
 		return nil, err
 	}
@@ -432,8 +459,8 @@ func (client *Client) GetVerification(blockID string, level int) (*VerificationR
 	// Handle conversion of Response from an interface{} to Verification for the user.
 	if level > 0 {
 		blocksResp := struct {
-			OK       bool        `json:"ok"`
-			Status   int         `json:"status"`
+			OK       bool     `json:"ok"`
+			Status   int      `json:"status"`
 			Response []*Block `json:"response"`
 		}{}
 		if err := json.Unmarshal(data, &blocksResp); err != nil {
@@ -442,8 +469,8 @@ func (client *Client) GetVerification(blockID string, level int) (*VerificationR
 		verifyBlocksResp.BlocksResponse = blocksResp.Response
 	} else {
 		verifyResp := struct {
-			OK       bool        `json:"ok"`
-			Status   int         `json:"status"`
+			OK       bool          `json:"ok"`
+			Status   int           `json:"status"`
 			Response *Verification `json:"response"`
 		}{}
 		if err := json.Unmarshal(data, &verifyResp); err != nil {
@@ -455,7 +482,7 @@ func (client *Client) GetVerification(blockID string, level int) (*VerificationR
 }
 
 // QueryTransactions gets all transactions matching the given query on the chain.
-func (client *Client) QueryTransactions(query *Query) (*MapResponse, error) {
+func (client *Client) QueryTransactions(query *Query) (*MultipleTransactionResponse, error) {
 	path := "/transaction"
 	uri := fmt.Sprintf("%s%s", client.apiBaseURL, path)
 
@@ -469,7 +496,7 @@ func (client *Client) QueryTransactions(query *Query) (*MapResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	var respData MapResponse
+	var respData MultipleTransactionResponse
 	if err := json.Unmarshal(data, &respData); err != nil {
 		return nil, err
 	}

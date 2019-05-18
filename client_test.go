@@ -224,12 +224,7 @@ func TestQueryContracts(t *testing.T) {
 	assert.NilError(t, err, "QueryContracts should not return an error")
 	// The Node and Python SDKs return queries under the key response.results as an array.
 	// For consistency, the overhead of managing this difference in golang is passed to the user.
-	raw, err := json.Marshal(resp.Response["results"])
-	assert.NilError(t, err, "json.Marshal should not return an error")
-	var contracts []Contract
-	err = json.Unmarshal(raw, &contracts)
-	assert.NilError(t, err, "json.Unmarshal should not return an error")
-	expected := Contract{
+	expected := &Contract{
 		TxnType:    "banana",
 		ContractID: "banana-sc-id",
 		Status: ContractStatus{
@@ -243,7 +238,7 @@ func TestQueryContracts(t *testing.T) {
 		ExecutionOrder: "serial",
 	}
 	assert.NilError(t, err, "QueryContracts should not return an error")
-	assert.DeepEqual(t, contracts[0], expected)
+	assert.DeepEqual(t, resp.Response.Results[0], expected)
 }
 
 func TestQueryContractsRequestFails(t *testing.T) {
@@ -539,30 +534,24 @@ func TestQueryBlocks(t *testing.T) {
 	assert.NilError(t, err, "QueryBlocks should not return an error")
 	// The Node and Python SDKs return queries under the key response.results as an array.
 	// For consistency, the overhead of managing this difference in golang is passed to the user.
-	raw, _ := json.Marshal(resp.Response["results"])
-	var blocks []Block
-	err = json.Unmarshal(raw, &blocks)
-	assert.NilError(t, err, "json.Unmarshal should not return an error")
-	expected := []Block{
-		{
-			Version: "1",
-			DCRN:    "Block::L1::AtRest",
-			Header: BlockHeader{
-				DcID:       "banana",
-				BlockID:    "24643517",
-				Level:      1,
-				Timestamp:  "1555455805",
-				PrevProof:  "banana",
-				PreviousID: "24643516",
-			},
-			Proof: BlockProof{
-				Scheme: "trust",
-				Proof:  "bananana",
-			},
-			Transactions: []Transaction{},
+	expected := &Block{
+		Version: "1",
+		DCRN:    "Block::L1::AtRest",
+		Header: BlockHeader{
+			DcID:       "banana",
+			BlockID:    "24643517",
+			Level:      1,
+			Timestamp:  "1555455805",
+			PrevProof:  "banana",
+			PreviousID: "24643516",
 		},
+		Proof: BlockProof{
+			Scheme: "trust",
+			Proof:  "bananana",
+		},
+		Transactions: []Transaction{},
 	}
-	assert.DeepEqual(t, blocks[0], expected[0])
+	assert.DeepEqual(t, resp.Response.Results[0], expected)
 }
 
 func TestQueryBlocksRequestFails(t *testing.T) {
@@ -668,11 +657,7 @@ func TestQueryTransactions(t *testing.T) {
 	assert.NilError(t, err, "QueryTransactions should not return an error")
 	// The Node and Python SDKs return queries under the key response.results as an array.
 	// For consistency, the overhead of managing this difference in golang is passed to the user.
-	raw, _ := json.Marshal(resp.Response["results"])
-	var txn []Transaction
-	err = json.Unmarshal(raw, &txn)
-	assert.NilError(t, err, "json.Unmarshal should not return an error")
-	expected := Transaction{
+	expected := &Transaction{
 		Version: "1",
 		DCRN:    "Transaction::L1::FullTransaction",
 		Header: Header{
@@ -689,7 +674,7 @@ func TestQueryTransactions(t *testing.T) {
 		},
 	}
 	expected.Payload["Hello"] = "World"
-	assert.DeepEqual(t, txn[0], expected)
+	assert.DeepEqual(t, resp.Response.Results[0], expected)
 }
 
 func TestQueryTransactionsRequestFails(t *testing.T) {
