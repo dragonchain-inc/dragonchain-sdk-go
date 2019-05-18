@@ -312,7 +312,7 @@ func (client *Client) GetTransaction(txnID string) (*TransactionResponse, error)
 }
 
 // PostTransaction creates a transaction on the chain.
-func (client *Client) PostTransaction(txn *PostTransaction) (*ChainResponse, error) {
+func (client *Client) PostTransaction(txn *PostTransaction) (*MapResponse, error) {
 	path := "/transaction"
 	uri := fmt.Sprintf("%s%s", client.apiBaseURL, path)
 
@@ -329,7 +329,7 @@ func (client *Client) PostTransaction(txn *PostTransaction) (*ChainResponse, err
 		must(resp.Body.Close())
 	}()
 	decoder := json.NewDecoder(resp.Body)
-	var chainResp ChainResponse
+	var chainResp MapResponse
 	err = decoder.Decode(&chainResp)
 	if err != nil {
 		return nil, err
