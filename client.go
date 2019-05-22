@@ -91,7 +91,7 @@ func (client *Client) OverrideCredentials(creds Authenticator, apiBaseURL string
 
 // GetSecret pulls a secret for a smart contract from the chain.
 // If scID is not provided, the SDK will attempt to pull it from the environment.
-func (client *Client) GetSecret(secretName, scID string) (string, error) {
+func (client *Client) GetSecret(secretName, scID string) (_ string, err error) {
 	if scID == "" {
 		scID = os.Getenv("SMART_CONTRACT_ID")
 	}
@@ -105,7 +105,7 @@ func (client *Client) GetSecret(secretName, scID string) (string, error) {
 
 	file, err := os.Open(path)
 	defer func() {
-		must(file.Close())
+		err = file.Close()
 	}()
 	if err == nil {
 		return parseSecret(file)
@@ -188,7 +188,7 @@ func (client *Client) GetSmartContract(contractID, txnType string) (*Response, e
 }
 
 // PostContract creates a new smart contract on the chain.
-func (client *Client) PostContract(contract *ContractConfiguration) (*Response, error) {
+func (client *Client) PostContract(contract *ContractConfiguration) (_ *Response, err error) {
 	path := "/contract"
 	uri := fmt.Sprintf("%s%s", client.apiBaseURL, path)
 	b, err := json.Marshal(contract)
@@ -201,7 +201,7 @@ func (client *Client) PostContract(contract *ContractConfiguration) (*Response, 
 		return nil, err
 	}
 	defer func() {
-		must(resp.Body.Close())
+		err = resp.Body.Close()
 	}()
 	decoder := json.NewDecoder(resp.Body)
 	var chainResp Response
@@ -272,7 +272,7 @@ func (client *Client) GetTransaction(txnID string) (*Response, error) {
 }
 
 // PostTransaction creates a transaction on the chain.
-func (client *Client) PostTransaction(txn *PostTransaction) (*Response, error) {
+func (client *Client) PostTransaction(txn *PostTransaction) (_ *Response, err error) {
 	path := "/transaction"
 	uri := fmt.Sprintf("%s%s", client.apiBaseURL, path)
 
@@ -286,7 +286,7 @@ func (client *Client) PostTransaction(txn *PostTransaction) (*Response, error) {
 		return nil, err
 	}
 	defer func() {
-		must(resp.Body.Close())
+		err = resp.Body.Close()
 	}()
 	decoder := json.NewDecoder(resp.Body)
 	var chainResp Response
@@ -298,7 +298,7 @@ func (client *Client) PostTransaction(txn *PostTransaction) (*Response, error) {
 }
 
 // PostTransactionBulk sends many transactions to a chain in a single HTTP request.
-func (client *Client) PostTransactionBulk(txn []*PostTransaction) (*Response, error) {
+func (client *Client) PostTransactionBulk(txn []*PostTransaction) (_ *Response, err error) {
 	path := "/transaction_bulk"
 	uri := fmt.Sprintf("%s%s", client.apiBaseURL, path)
 
@@ -316,7 +316,7 @@ func (client *Client) PostTransactionBulk(txn []*PostTransaction) (*Response, er
 		return nil, err
 	}
 	defer func() {
-		must(resp.Body.Close())
+		err = resp.Body.Close()
 	}()
 	decoder := json.NewDecoder(resp.Body)
 	var chainResp Response
@@ -551,7 +551,7 @@ func (client *Client) UpdateTransactionType(transactionType string, customIndexe
 }
 
 // RegisterTransactionType creates a new transaction type.
-func (client *Client) RegisterTransactionType(transactionType string, customIndexes []CustomIndexStructure) (*Response, error) {
+func (client *Client) RegisterTransactionType(transactionType string, customIndexes []CustomIndexStructure) (_ *Response, err error) {
 	path := "/transaction-type"
 	uri := fmt.Sprintf("%s%s", client.apiBaseURL, path)
 	var params TransactionType
@@ -569,7 +569,7 @@ func (client *Client) RegisterTransactionType(transactionType string, customInde
 		return nil, err
 	}
 	defer func() {
-		must(resp.Body.Close())
+		err = resp.Body.Close()
 	}()
 	decoder := json.NewDecoder(resp.Body)
 	var chainResp Response
@@ -651,10 +651,4 @@ func buildQuery(req *http.Request, query *Query) {
 		q.Add("offset", string(query.Offset))
 	}
 	req.URL.RawQuery = q.Encode()
-}
-
-func must(err error) {
-	if err != nil {
-		panic(err)
-	}
 }
